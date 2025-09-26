@@ -1,51 +1,60 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, Download, Users, Star, Clock, Wrench, Car, Shield, Facebook, Copy } from 'lucide-react'
-import { NextResponse } from "next/server"
-import mercadopago from "mercadopago"
-
-mercadopago.configure({
-  access_token: process.env.MP_ACCESS_TOKEN as string,
-})
-
+import { CheckCircle, Download, Users, Star, Clock, Wrench, Car, Shield, Facebook, Copy, Settings } from 'lucide-react'
+import { stripePromise } from '@/lib/stripe'
+import { PageContent, defaultContent } from '@/lib/types'
+import Link from 'next/link'
 
 export default function FuscaPDFLanding() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [showCopies, setShowCopies] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [content, setContent] = useState<PageContent>(defaultContent)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-export async function POST() {
-  try {
-    const preference = await mercadopago.preferences.create({
-      items: [
-        {
-          title: "Manual Completo de Mecânica do Fusca",
-          unit_price: 29.9,
-          quantity: 1,
-          currency_id: "BRL",
-        },
-      ],
-      back_urls: {
-        success: "http://localhost:3000/sucesso",
-        failure: "http://localhost:3000/erro",
-        pending: "http://localhost:3000/pendente",
-      },
-      auto_return: "approved",
-    })
+  // Verificar se é admin
+  useEffect(() => {
+    const adminStatus = localStorage.getItem('isAdmin')
+    setIsAdmin(adminStatus === 'true')
+  }, [])
 
-    return NextResponse.json({ id: preference.body.id })
-  } catch (error) {
-    console.error("Erro Mercado Pago:", error)
-    return NextResponse.json({ error: "Erro ao criar preferência" }, { status: 500 })
-  }
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) return
 
+    setLoading(true)
+    
+    try {
+      // Criar sessão de checkout
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          productName: content.title,
+          price: content.price
+        })
+      })
 
+      const { sessionId, url } = await response.json()
 
+      if (url) {
+        // Redirecionar para o Stripe Checkout
+        window.location.href = url
+      } else {
+        alert('Erro ao processar pagamento. Tente novamente.')
+      }
+    } catch (error) {
+      alert('Erro ao processar pagamento. Tente novamente.')
+    }
+
+    setLoading(false)
   }
 
   const copyToClipboard = (text: string) => {
@@ -66,7 +75,7 @@ Cansado de gastar uma FORTUNA na oficina com seu Fusca?
 ✅ Ilustrações detalhadas passo a passo
 ✅ Desde manutenção básica até reparos avançados
 
-🔥 PROMOÇÃO RELÂMPAGO: R$ 97 por apenas R$ 29,90!
+🔥 PROMOÇÃO RELÂMPAGO: R$ ${content.originalPrice.toFixed(2)} por apenas R$ ${content.price.toFixed(2)}!
 
 Pare de depender de mecânico para TUDO!
 Torne-se independente com seu Fusquinha! 💪
@@ -92,7 +101,7 @@ Agora meu Fusca 78 roda liso que nem seda! 🚗💨
 • Manutenção preventiva que FUNCIONA
 • Dicas que só quem tem experiência sabe
 
-De R$ 97 por apenas R$ 29,90 (hoje)
+De R$ ${content.originalPrice.toFixed(2)} por apenas R$ ${content.price.toFixed(2)} (hoje)
 
 Quem quer parar de sofrer com pane? 🙋‍♂️
 
@@ -115,7 +124,7 @@ TOTAL: Mais de R$ 300 por mês! 😱
 ✅ SOLUÇÃO: Manual Completo de Mecânica do Fusca
 ✅ Aprenda a resolver 90% dos problemas em casa
 ✅ Economize MILHARES por ano
-✅ Apenas R$ 29,90 (promoção)
+✅ Apenas R$ ${content.price.toFixed(2)} (promoção)
 
 Comentem "MANUAL" que eu mando o link! 👇
 
@@ -134,20 +143,34 @@ Comentem "MANUAL" que eu mando o link! 👇
               <Car className="w-8 h-8 text-yellow-400" />
               <h1 className="text-2xl font-bold">Fusca Expert</h1>
             </div>
-            <Button 
-              onClick={() => setShowCopies(!showCopies)}
-              variant="outline"
-              className="text-blue-900 border-white hover:bg-white"
-            >
-              <Facebook className="w-4 h-4 mr-2" />
-              Copies Facebook
-            </Button>
+            {/* Botões admin aparecem apenas para admin */}
+            {isAdmin && (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setShowCopies(!showCopies)}
+                  variant="outline"
+                  className="text-blue-900 border-white hover:bg-white"
+                >
+                  <Facebook className="w-4 h-4 mr-2" />
+                  Copies Facebook
+                </Button>
+                <Link href="/admin">
+                  <Button 
+                    variant="outline"
+                    className="text-blue-900 border-white hover:bg-white"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Admin
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Facebook Copies Section */}
-      {showCopies && (
+      {/* Facebook Copies Section - Apenas para admin */}
+      {showCopies && isAdmin && (
         <section className="py-8 bg-blue-900 text-white">
           <div className="container mx-auto max-w-4xl px-4">
             <h2 className="text-2xl font-bold mb-6 text-center">📱 Copies para Facebook</h2>
@@ -201,7 +224,7 @@ Comentem "MANUAL" que eu mando o link! 👇
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
               <Badge className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-sm font-semibold">
-                🔥 OFERTA LIMITADA - 70% OFF
+                🔥 OFERTA LIMITADA - {Math.round((1 - content.price / content.originalPrice) * 100)}% OFF
               </Badge>
               
               <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
@@ -211,14 +234,13 @@ Comentem "MANUAL" que eu mando o link! 👇
               </h1>
               
               <p className="text-xl text-gray-700 leading-relaxed">
-                Tudo que você precisa saber para <strong>dominar a mecânica do seu Fusca</strong>. 
-                Desde manutenção básica até reparos avançados, com linguagem simples e ilustrações detalhadas.
+                {content.subtitle}
               </p>
 
               <div className="flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2 text-green-600">
                   <CheckCircle className="w-5 h-5" />
-                  <span>+200 páginas de conteúdo</span>
+                  <span>{content.description}</span>
                 </div>
                 <div className="flex items-center gap-2 text-green-600">
                   <CheckCircle className="w-5 h-5" />
@@ -233,8 +255,8 @@ Comentem "MANUAL" que eu mando o link! 👇
               {/* Preço */}
               <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-yellow-400">
                 <div className="text-center space-y-2">
-                  <p className="text-gray-500 line-through text-lg">De R$ 97,00</p>
-                  <p className="text-4xl font-bold text-green-600">R$ 29,90</p>
+                  <p className="text-gray-500 line-through text-lg">De R$ {content.originalPrice.toFixed(2)}</p>
+                  <p className="text-4xl font-bold text-green-600">R$ {content.price.toFixed(2)}</p>
                   <p className="text-red-500 font-semibold">⏰ Oferta válida por tempo limitado!</p>
                 </div>
               </div>
@@ -243,7 +265,7 @@ Comentem "MANUAL" que eu mando o link! 👇
               <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <CardContent className="p-6">
                   {!isSubmitted ? (
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleCheckout} className="space-y-4">
                       <h3 className="text-xl font-bold text-center">
                         🚗 GARANTA SEU MANUAL AGORA!
                       </h3>
@@ -257,10 +279,11 @@ Comentem "MANUAL" que eu mando o link! 👇
                       />
                       <Button 
                         type="submit" 
+                        disabled={loading}
                         className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 text-lg"
                       >
                         <Download className="w-5 h-5 mr-2" />
-                        COMPRAR AGORA - R$ 29,90
+                        {loading ? 'Processando...' : `COMPRAR AGORA - R$ ${content.price.toFixed(2)}`}
                       </Button>
                       <p className="text-xs text-center opacity-90">
                         ✅ Pagamento 100% seguro • ✅ Acesso imediato • ✅ Garantia de 7 dias
@@ -270,7 +293,7 @@ Comentem "MANUAL" que eu mando o link! 👇
                     <div className="text-center space-y-4">
                       <CheckCircle className="w-16 h-16 text-green-400 mx-auto" />
                       <h3 className="text-xl font-bold">Obrigado pelo interesse!</h3>
-                      <p>Em breve você receberá as instruções de pagamento no seu e-mail.</p>
+                      <p>Redirecionando para o pagamento...</p>
                     </div>
                   )}
                 </CardContent>
@@ -300,35 +323,21 @@ Comentem "MANUAL" que eu mando o link! 👇
           </h2>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <Wrench className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold mb-3">Manutenção Preventiva</h3>
-                <p className="text-gray-600">
-                  Cronograma completo de manutenção para manter seu Fusca sempre em dia
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <Car className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold mb-3">Motor e Transmissão</h3>
-                <p className="text-gray-600">
-                  Tudo sobre o motor boxer e câmbio do Fusca, com dicas de regulagem
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <Shield className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold mb-3">Sistema Elétrico</h3>
-                <p className="text-gray-600">
-                  Diagnóstico e reparo de problemas elétricos mais comuns
-                </p>
-              </CardContent>
-            </Card>
+            {content.benefits.map((benefit, index) => {
+              const [title, description] = benefit.split(' - ')
+              const icons = [Wrench, Car, Shield]
+              const Icon = icons[index] || Wrench
+              
+              return (
+                <Card key={index} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6 text-center">
+                    <Icon className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold mb-3">{title}</h3>
+                    <p className="text-gray-600">{description}</p>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -341,35 +350,19 @@ Comentem "MANUAL" que eu mando o link! 👇
           </h2>
           
           <div className="grid md:grid-cols-2 gap-8">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-4">
-                  "Finalmente encontrei um manual que explica tudo de forma simples! 
-                  Consegui resolver vários problemas do meu Fusca 78."
-                </p>
-                <p className="font-semibold text-gray-900">- João Silva, SP</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-4">
-                  "Material excelente! As ilustrações ajudam muito. Economizei uma fortuna 
-                  em oficina depois que comprei."
-                </p>
-                <p className="font-semibold text-gray-900">- Carlos Mendes, RJ</p>
-              </CardContent>
-            </Card>
+            {content.testimonials.map((testimonial, index) => (
+              <Card key={index}>
+                <CardContent className="p-6">
+                  <div className="flex mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                  <p className="text-gray-700 mb-4">"{testimonial.text}"</p>
+                  <p className="font-semibold text-gray-900">- {testimonial.name}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
@@ -379,10 +372,7 @@ Comentem "MANUAL" que eu mando o link! 👇
         <div className="container mx-auto max-w-4xl px-4 text-center">
           <Clock className="w-16 h-16 mx-auto mb-6 text-yellow-400" />
           <h2 className="text-3xl font-bold mb-4">⚠️ ATENÇÃO: Oferta por tempo limitado!</h2>
-          <p className="text-xl mb-8">
-            Apenas <strong>50 cópias</strong> disponíveis com este desconto especial.
-            Depois volta para o preço normal de R$ 97,00
-          </p>
+          <p className="text-xl mb-8">{content.urgencyText}</p>
           
           <Button 
             className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 px-8 text-lg"
