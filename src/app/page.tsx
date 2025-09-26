@@ -6,19 +6,18 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, Download, Users, Star, Clock, Wrench, Car, Shield, Facebook, Copy } from 'lucide-react'
-import type { NextApiRequest, NextApiResponse } from "next"
-
-export default function FuscaPDFLanding() {
-  const [email, setEmail] = useState('')
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const [showCopies, setShowCopies] = useState(false)
-
 import { NextResponse } from "next/server"
 import mercadopago from "mercadopago"
 
 mercadopago.configure({
   access_token: process.env.MP_ACCESS_TOKEN as string,
 })
+
+
+export default function FuscaPDFLanding() {
+  const [email, setEmail] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [showCopies, setShowCopies] = useState(false)
 
 export async function POST() {
   try {
