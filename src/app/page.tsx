@@ -13,20 +13,39 @@ export default function FuscaPDFLanding() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [showCopies, setShowCopies] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
+import { NextResponse } from "next/server"
+import mercadopago from "mercadopago"
 
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN as string,
+})
+
+export async function POST() {
   try {
-    const res = await fetch("/api/checkout", { method: "POST" })
-    const data = await res.json()
+    const preference = await mercadopago.preferences.create({
+      items: [
+        {
+          title: "Manual Completo de Mecânica do Fusca",
+          unit_price: 29.9,
+          quantity: 1,
+          currency_id: "BRL",
+        },
+      ],
+      back_urls: {
+        success: "http://localhost:3000/sucesso",
+        failure: "http://localhost:3000/erro",
+        pending: "http://localhost:3000/pendente",
+      },
+      auto_return: "approved",
+    })
 
-    if (data.id) {
-      window.location.href = `https://www.mercadopago.com.br/checkout/v1/redirect?preference_id=${data.id}`
-    }
-  } catch (err) {
-    alert("Erro ao iniciar o pagamento. Tente novamente.")
-    console.error(err)
+    return NextResponse.json({ id: preference.body.id })
+  } catch (error) {
+    console.error("Erro Mercado Pago:", error)
+    return NextResponse.json({ error: "Erro ao criar preferência" }, { status: 500 })
   }
+
+
 
   }
 
